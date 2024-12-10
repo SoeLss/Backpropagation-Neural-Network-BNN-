@@ -1,0 +1,98 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OneHotEncoder
+from tensorflow.keras.models import Sequential, load_model
+from tensorflow.keras.layers import Dense, Flatten
+from PIL import Image
+
+# 1. Load Dataset untuk Pelatihan
+data_path = "D:/KAMPUS/SEMESTER 5/AI/PBL_V2/A_Z Handwritten Data.csv"  # Ganti dengan lokasi file dataset
+data = pd.read_csv(data_path, header=None)
+X = data.iloc[:, 1:].values  # Gambar (piksel)
+y = data.iloc[:, 0].values   # Label
+
+# 2. Normalize Data
+X = X / 255.0
+
+# 3. One-hot Encode Labels
+encoder = OneHotEncoder(sparse_output=False)  # Gunakan sparse_output=False
+y = y.reshape(-1, 1)
+y_encoded = encoder.fit_transform(y)
+
+# 4. Split Data
+X_train, X_test, y_train, y_test = train_test_split(X, y_encoded, test_size=0.2, random_state=42)
+
+# 5. Build Backpropagation Model
+model = Sequential([
+    Flatten(input_shape=(X.shape[1],)),  # Flatten input 28x28
+    Dense(128, activation='relu'),       # Hidden layer
+    Dense(64, activation='relu'),        # Hidden layer
+    Dense(26, activation='softmax')      # Output layer for 26 alphabets
+])
+
+# 6. Compile Model
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+
+# 7. Train Model
+history = model.fit(X_train, y_train, validation_data=(X_test, y_test), epochs=2, batch_size=32)
+
+# 8. Save Model
+model.save("alphabet_recognition_model.h5")
+print("Model saved successfully!")
+
+# 9. Load Model untuk Pengujian
+model = load_model("alphabet_recognition_model.h5")
+
+# 10. Uji Gambar Baru Berformat .jpg
+def predict_new_image(image_path):
+    """
+    Fungsi untuk memprediksi huruf dari file gambar .jpg
+    """
+    # Load dan preprocess gambar
+    img = Image.open(image_path).convert('L')  # Konversi ke grayscale
+    img = img.resize((28, 28))  # Ubah ukuran ke 28x28
+    img_array = np.array(img) / 255.0  # Normalisasi piksel
+    img_array = img_array.reshape(1, 28 * 28)  # Ubah dimensi sesuai input model
+
+    # Prediksi huruf
+    prediction = model.predict(img_array)
+    predicted_label = chr(np.argmax(prediction) + 65)  # Konversi indeks ke huruf
+    predicted_prob = np.max(prediction) * 100  # Persentase probabilitas prediksi
+    return predicted_label, predicted_prob
+
+# 11. Tes Gambar Baru
+test_image_path = "D:/KAMPUS/SEMESTER 5/AI/PBL_V2/datatest3.png"  # Ganti dengan lokasi file datatest
+predicted_letter, predicted_prob = predict_new_image(test_image_path)
+print(f"The predicted letter is: {predicted_letter} with {predicted_prob:.2f}% confidence")
+
+# 12. Visualisasi Gambar yang Diuji
+img = Image.open(test_image_path).convert('L')
+plt.imshow(img, cmap='gray')
+plt.title(f"Predicted Letter: {predicted_letter} ({predicted_prob:.2f}%)")
+plt.axis('off')
+plt.show()
+
+# 13. Plotting Akurasi Selama Pelatihan
+plt.figure(figsize=(10, 5))
+
+# Plot training & validation accuracy
+plt.subplot(1, 2, 1)
+plt.plot(history.history['accuracy'], label='Training Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+plt.title('Model Accuracy')
+plt.xlabel('Epochs')
+plt.ylabel('Accuracy')
+plt.legend(loc='lower right')
+
+# Plot training & validation loss
+plt.subplot(1, 2, 2)
+plt.plot(history.history['loss'], label='Training Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.title('Model Loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend(loc='upper right')
+plt.tight_layout()
+plt.show()
